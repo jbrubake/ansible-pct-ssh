@@ -26,19 +26,58 @@ jobs:
       fail-fast: false
       matrix:
         # also test 'latest', eventually this will be upgraded to a newer version and might fail early
-        os: [ubuntu-20.04, ubuntu-latest]
-        ansible: ["stable-2.9", "stable-2.10", "stable-2.11", "devel"]
+        # build the matrix manually - not all versions of Ubuntu can do with all Ansible versions,
+        # mostly because the Python version is outdated (20.04 only has Python 3.8)
+        # maybe in the future this can be build with include/exclude
+        #os: [ubuntu-20.04, ubuntu-22.04, ubuntu-latest]
+        #ansible: ["stable-2.9", "stable-2.10", "stable-2.11", "stable-2.12", "stable-2.13", "stable-2.14"]
         include:
           - os: ubuntu-20.04
             guest: 20.04
-            guest-image: 20.04/amd64
-          - os: ubuntu-latest
+            #guest-image: 20.04/amd64
+            ansible: "stable-2.9"
+          - os: ubuntu-20.04
             guest: 20.04
-            guest-image: 20.04/amd64
+            ansible: "stable-2.10"
+          - os: ubuntu-20.04
+            guest: 20.04
+            ansible: "stable-2.11"
+          - os: ubuntu-20.04
+            guest: 20.04
+            ansible: "stable-2.12"
+          - os: ubuntu-20.04
+            guest: 20.04
+            ansible: "stable-2.13"
+          - os: ubuntu-22.04
+            guest: 22.04
+            ansible: "stable-2.9"
+          - os: ubuntu-22.04
+            guest: 22.04
+            ansible: "stable-2.10"
+          - os: ubuntu-22.04
+            guest: 22.04
+            ansible: "stable-2.11"
+          - os: ubuntu-22.04
+            guest: 22.04
+            ansible: "stable-2.12"
+          - os: ubuntu-22.04
+            guest: 22.04
+            ansible: "stable-2.13"
+          - os: ubuntu-22.04
+            guest: 22.04
+            ansible: "stable-2.14"
+          # build the latest known stable Ansible on the latest known stable Ubuntu
+          - os: ubuntu-latest
+            guest: 22.04
+            ansible: "stable-2.14"
+          # build the development version of Ansible on latest Ubuntu
+          - os: ubuntu-latest
+            guest: 22.04
+            ansible: "devel"
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
 
       # check Python syntax
@@ -47,17 +86,25 @@ jobs:
 
 
       # prepare container with LXD installation
-      - name: Install LXD
-        run: sudo apt-get install -y lxd lxd-client lxd-tools iptables
+      - name: Install basic packages
+        run: sudo apt-get install -y iptables
+
+      - name: Install LXD (Ubuntu 20.x)
+        run: sudo apt-get install -y lxd lxd-client lxd-tools
+        if: ${{ matrix.guest == '20.04' }}
+
+      - name: Install LXD (Ubuntu >= 22.x)
+        run: sudo snap install lxd
+        if: ${{ matrix.guest != '20.04' }}
 
 
       # different LXD versions need different init steps
       - name: Store LXD version
-        run: echo "::set-output name=LXD_Version::$(lxd --version)"
+        run: echo "LXD_Version=$(lxd --version)" >> $GITHUB_OUTPUT
         id: lxd_version
 
       - name: Store LXD major version
-        run: echo "::set-output name=LXD_Major_Version::$(lxd --version | cut -f1 -d'.')"
+        run: echo "LXD_Major_Version=$(lxd --version | cut -f1 -d'.')" >> $GITHUB_OUTPUT
         id: lxd__major_version
 
       - name: Output version
@@ -69,7 +116,7 @@ jobs:
 
       - name: Fail for unknown newer versions
         run: exit 1
-        if: steps.lxd__major_version.outputs.LXD_Major_Version > 4
+        if: steps.lxd__major_version.outputs.LXD_Major_Version > 5
 
       - name: Init LXD version 3
         run: sudo lxd init --preseed < $GITHUB_WORKSPACE/.github/resources/lxd3-init.yml
@@ -77,13 +124,13 @@ jobs:
 
       - name: Init LXD version 4
         run: sudo lxd init --preseed < $GITHUB_WORKSPACE/.github/resources/lxd4-init.yml
-        if: steps.lxd__major_version.outputs.LXD_Major_Version == 4
+        if: steps.lxd__major_version.outputs.LXD_Major_Version >= 4
 
       - name: Show LXD status
         run: sudo lxc profile show default
 
       - name: Store IPv4 address for lxdbr0
-        run: echo "::set-output name=IP::$(ip -4 addr show lxdbr0 | grep inet | awk '{print $2}' | cut -d/ -f1)"
+        run: echo "IP=$(ip -4 addr show lxdbr0 | grep inet | awk '{print $2}' | cut -d/ -f1)" >> $GITHUB_OUTPUT
         id: lxdbr0_ipv4
 
       - name: Show lxdbr0 IP address
@@ -97,6 +144,35 @@ jobs:
 
       - name: Attach container storage pool to default profile
         run: sudo lxc profile device add default root disk path=/ pool=container-pool
+
+
+#      - name: Firewall IPv6
+#        run: sudo lxc network set lxdbr0 ipv6.firewall false
+
+#      - name: Firewall IPv4
+#        run: sudo lxc network set lxdbr0 ipv4.firewall false
+
+#      - name: Firewall 1
+#        run: sudo ufw allow in on lxdbr0
+
+#      - name: Firewall 2
+#        run: sudo ufw route allow in on lxdbr0
+
+#      - name: Firewall 3
+#        run: sudo ufw route allow out on lxdbr0
+
+#      - name: Docker
+#        run: sudo docker ps
+
+      # https://linuxcontainers.org/lxd/docs/master/howto/network_bridge_firewalld/#prevent-issues-with-lxd-and-docker
+      - name: Show network configuration
+        run: sudo ip addr
+
+      - name: Docker Firewall 1
+        run: sudo iptables -I DOCKER-USER -i lxdbr0 -o eth0 -j ACCEPT
+
+      - name: Docker Firewall 2
+        run: sudo iptables -I DOCKER-USER -o lxdbr0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
 
       # create an actual container, and configure it
@@ -114,14 +190,14 @@ jobs:
         run: sudo lxc exec test-container -- ip -4 -o link show
 
       - name: Store Container interface name
-        run: echo "::set-output name=IF::$(sudo lxc exec test-container -- ip -4 -o link show | awk '{print $2}' | cut -f1 -d':' | cut -f1 -d'@' | grep '^e[tn]')"
+        run: echo "IF=$(sudo lxc exec test-container -- ip -4 -o link show | awk '{print $2}' | cut -f1 -d':' | cut -f1 -d'@' | grep '^e[tn]')" >> $GITHUB_OUTPUT
         id: test_container_interface
 
       - name: Request and wait for IPv4 address
         run: sudo lxc exec test-container -- dhclient -v ${{ steps.test_container_interface.outputs.IF }}
 
       - name: Store Container IPv4 address
-        run: echo "::set-output name=IPv4::$(sudo lxc exec test-container -- ip -o -4 addr show ${{ steps.test_container_interface.outputs.IF }} | awk '{print $4}' | cut -d/ -f1)"
+        run: echo "IPv4=$(sudo lxc exec test-container -- ip -o -4 addr show ${{ steps.test_container_interface.outputs.IF }} | awk '{print $4}' | cut -d/ -f1)" >> $GITHUB_OUTPUT
         id: test_container_ipv4
 
       - name: Output container network data
@@ -131,8 +207,8 @@ jobs:
         run: exit 1
         if: steps.test_container_ipv4.outputs.IPv4 == ''
 
-#      - name: Ping test
-#        run: ping -4 -c 5 -n -v ${{ steps.test_container_ipv4.outputs.IPv4 }}
+      - name: Ping test if the container is connected
+        run: ping -4 -c 3 -n -v ${{ steps.test_container_ipv4.outputs.IPv4 }}
 
       - name: Add container to /etc/hosts
         run: ls -ld /etc/hosts
@@ -166,6 +242,23 @@ jobs:
       - name: Generate OpenSSH key for runner user
         #run: ssh-keygen -t rsa -b 4096 -f $HOME/.ssh/id_rsa -v -N "" -P "" -C "home/runner@host"
         run: ssh-keygen -t ed25519 -f $HOME/.ssh/id_ed25519 -v -N "" -P "" -C "home/runner@host"
+
+
+      # 22.04 can't reach the Ubuntu servers over IPv6
+#      - name: Disable IPv6 (all)
+#        run: sudo lxc exec test-container --env DEBIAN_FRONTEND=noninteractive -- sysctl -w net.ipv6.conf.all.disable_ipv6=1
+
+#      - name: Disable IPv6 (default)
+#        run: sudo lxc exec test-container --env DEBIAN_FRONTEND=noninteractive -- sysctl -w net.ipv6.conf.default.disable_ipv6=1
+
+#      - name: Disable IPv6 (lo)
+#        run: sudo lxc exec test-container --env DEBIAN_FRONTEND=noninteractive -- sysctl -w net.ipv6.conf.lo.disable_ipv6=1
+
+      - name: Network
+        run: sudo lxc exec test-container --env DEBIAN_FRONTEND=noninteractive -- ip addr
+
+      - name: Network
+        run: sudo lxc exec test-container --env DEBIAN_FRONTEND=noninteractive -- ip route
 
 
       # install OpenSSH in container
@@ -276,12 +369,28 @@ jobs:
       #- name: apt-get dist-upgrade
       #  run: sudo lxc exec test-container --env DEBIAN_FRONTEND=noninteractive -- apt-get dist-upgrade -y
 
+      - name: Ubuntu version
+        run: sudo lxc exec test-container --env DEBIAN_FRONTEND=noninteractive -- lsb_release -a
+
       - name: Python3
         run: sudo lxc exec test-container --env DEBIAN_FRONTEND=noninteractive -- apt-get -y install -y python3
 
-      # Install LXD inside cotnainer its missing inside container
-      - name: Install LXD inside container
+      # Install LXD inside container, it's missing inside container
+      - name: Install LXD inside container (20.04)
         run: sudo lxc exec test-container --env DEBIAN_FRONTEND=noninteractive -- sudo apt-get install -y lxd lxd-client lxd-tools iptables
+        if: ${{ matrix.guest == '20.04' }}
+
+      - name: Install Snap inside container (>= 22.04)
+        run: sudo lxc exec test-container --env DEBIAN_FRONTEND=noninteractive -- sudo apt-get -y install snapd iptables
+        if: ${{ matrix.guest != '20.04' }}
+
+      - name: Install LXD inside container (>= 22.04)
+        run: sudo lxc exec test-container --env DEBIAN_FRONTEND=noninteractive -- sudo snap install lxd
+        if: ${{ matrix.guest != '20.04' }}
+
+#      - name: Ping test if the container has connectivity
+#        run: sudo lxc exec test-container --env DEBIAN_FRONTEND=noninteractive -- ping -4 -c 3 -n -v 8.8.8.8
+
 
       # container is ready
 
