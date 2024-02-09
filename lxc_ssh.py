@@ -541,15 +541,15 @@ class Connection(ConnectionBase):
     def _set_version(self):
         # Check for 'pct' first in case the host is a proxmox server
         if self._exec_command("type -p lxc", None, False)[0] == 0:
-            self.lxc_version = 'pct'
+            self.lxc_version = "pct"
             display.vvv("PCT")
         # LXC v1 uses 'lxc-info', 'lxc-attach' and so on
         elif self._exec_command("type -p lxc-info", None, False)[0] == 0:
-            self.lxc_version = 'lxc-v1'
+            self.lxc_version = "lxc-v1"
             display.vvv("LXC v1")
         # LXC v2 uses just 'lxc'
         elif self._exec_command("type -p lxc", None, False)[0] == 0:
-            self.lxc_version = 'lxc-v2' 
+            self.lxc_version = "lxc-v2" 
             display.vvv("LXC v2")
         else:
             raise AnsibleConnectionFailure("Cannot identify LXC version")
@@ -1384,15 +1384,15 @@ class Connection(ConnectionBase):
 
         ssh_executable = self.get_option("ssh_executable")
         h = self.container_name
-        if self.lxc_version == 'pct':
+        if self.lxc_version == "pct":
                 lxc_cmd = "pct exec %s -- %s" % (pipes.quote(h), cmd)
-        elif self.lxc_version == 'lxc-v2':
+        elif self.lxc_version == "lxc-v2":
             lxc_cmd = "%slxc exec %s --mode=non-interactive -- /bin/sh -c %s" % (
                 self.systemd_run_prefix,
                 pipes.quote(h),
                 pipes.quote(cmd),
             )
-        elif self.lxc_version == 'lxc-v1':
+        elif self.lxc_version == "lxc-v1":
             lxc_cmd = "%slxc-attach --name %s -- /bin/sh -c %s" % (
                 self.systemd_run_prefix,
                 pipes.quote(h),
@@ -1427,18 +1427,18 @@ class Connection(ConnectionBase):
                     # regular command
                     cmd = "cat > %s; echo -n done" % pipes.quote(out_path)
                 h = self.container_name
-                if self.lxc_version == 'pct':
+                if self.lxc_version == "pct":
                     lxc_cmd = "pct exec %s -- /bin/sh -c %s" % (
                         pipes.quote(h),
                         pipes.quote(cmd),
                     )
-                elif self.lxc_version == 'lxc-v2':
+                elif self.lxc_version == "lxc-v2":
                     lxc_cmd = "%slxc exec %s --mode=non-interactive -- /bin/sh -c %s" % (
                         self.systemd_run_prefix,
                         pipes.quote(h),
                         pipes.quote(cmd),
                     )
-                elif self.lxc_version == 'lxc-v1':
+                elif self.lxc_version == "lxc-v1":
                     lxc_cmd = "%slxc-attach --name %s -- /bin/sh -c %s" % (
                         self.systemd_run_prefix,
                         pipes.quote(h),
@@ -1463,18 +1463,18 @@ class Connection(ConnectionBase):
                     # regular command
                     cmd = "cat > %s; echo -n done" % pipes.quote(out_path)
                 h = self.container_name
-                if self.lxc_version == 'pct':
+                if self.lxc_version == "pct":
                     lxc_cmd = "pct exec %s -- %s" % (
                         pipes.quote(h),
                         pipes.quote(cmd),
                     )
-                elif self.lxc_version == 'lxc-v2':
+                elif self.lxc_version == "lxc-v2":
                     lxc_cmd = "%slxc exec %s --mode=non-interactive -- /bin/sh -c %s" % (
                         self.systemd_run_prefix,
                         pipes.quote(h),
                         pipes.quote(cmd),
                     )
-                elif self.lxc_version == 'lxc-v1':
+                elif self.lxc_version == "lxc-v1":
                     lxc_cmd = "%slxc-attach --name %s -- /bin/sh -c %s" % (
                         self.systemd_run_prefix,
                         pipes.quote(h),
@@ -1497,18 +1497,18 @@ class Connection(ConnectionBase):
 
         cmd = "cat < %s" % pipes.quote(in_path)
         h = self.container_name
-        if self.lxc_version == 'pct':
+        if self.lxc_version == "pct":
             lxc_cmd = "pct exec %s -- %s" % (
                 pipes.quote(h),
                 pipes.quote(cmd),
             )
-        elif self.lxc_version == 'lxc-v2':
+        elif self.lxc_version == "lxc-v2":
             lxc_cmd = "%slxc exec %s --mode=non-interactive -- /bin/sh -c %s" % (
                 self.systemd_run_prefix,
                 pipes.quote(h),
                 pipes.quote(cmd),
             )
-        elif self.lxc_version == 'lxc-v1':
+        elif self.lxc_version == "lxc-v1":
             lxc_cmd = "%slxc-attach --name %s -- /bin/sh -c %s" % (
                 self.systemd_run_prefix,
                 pipes.quote(h),
