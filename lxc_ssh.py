@@ -465,7 +465,7 @@ def _ssh_retry(func):
                     # 0 = success
                     # 1-254 = remote command return code
                     # 255 = failure from the ssh command itself
-                except (AnsibleControlPersistBrokenPipeError) as e:
+                except AnsibleControlPersistBrokenPipeError as e:
                     # Retry one more time because of the ControlPersist
                     # broken pipe (see #16731)
                     display.vvv("RETRYING BECAUSE OF CONTROLPERSIST BROKEN PIPE")
@@ -478,7 +478,7 @@ def _ssh_retry(func):
                         "Failed to connect to the host via ssh: %s"
                         % to_native(return_tuple[2])
                     )
-            except (AnsibleConnectionFailure, Exception) as e:
+            except AnsibleConnectionFailure, Exception as e:
                 if attempt == remaining_tries - 1:
                     raise
                 else:
@@ -540,15 +540,15 @@ class Connection(ConnectionBase):
 
     def _set_version(self):
         # Check for 'pct' first in case the host is a proxmox server
-        if self._exec_command("type -p lxc", None, False)[0] == 0:
+        if self._exec_command("type lxc", None, False)[0] == 0:
             self.lxc_version = "pct"
             display.vvv("PCT")
         # LXC v1 uses 'lxc-info', 'lxc-attach' and so on
-        elif self._exec_command("type -p lxc-info", None, False)[0] == 0:
+        elif self._exec_command("type lxc-info", None, False)[0] == 0:
             self.lxc_version = "lxc-v1"
             display.vvv("LXC v1")
         # LXC v2 uses just 'lxc'
-        elif self._exec_command("type -p lxc", None, False)[0] == 0:
+        elif self._exec_command("type lxc", None, False)[0] == 0:
             self.lxc_version = "lxc-v2" 
             display.vvv("LXC v2")
         else:
@@ -1385,7 +1385,7 @@ class Connection(ConnectionBase):
         ssh_executable = self.get_option("ssh_executable")
         h = self.container_name
         if self.lxc_version == "pct":
-                lxc_cmd = "pct exec %s -- %s" % (pipes.quote(h), cmd)
+            lxc_cmd = "pct exec %s -- %s" % (pipes.quote(h), cmd)
         elif self.lxc_version == "lxc-v2":
             lxc_cmd = "%slxc exec %s --mode=non-interactive -- /bin/sh -c %s" % (
                 self.systemd_run_prefix,
