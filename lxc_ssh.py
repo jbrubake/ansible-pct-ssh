@@ -549,7 +549,7 @@ class Connection(ConnectionBase):
             display.vvv("LXC v1")
         # LXC v2 uses just 'lxc'
         elif self._exec_command("type lxc", None, False)[0] == 0:
-            self.lxc_version = "lxc-v2" 
+            self.lxc_version = "lxc-v2"
             display.vvv("LXC v2")
         else:
             raise AnsibleConnectionFailure("Cannot identify LXC version")
