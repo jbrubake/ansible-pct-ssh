@@ -478,7 +478,7 @@ def _ssh_retry(func):
                         "Failed to connect to the host via ssh: %s"
                         % to_native(return_tuple[2])
                     )
-            except AnsibleConnectionFailure, Exception as e:
+            except (AnsibleConnectionFailure, Exception) as e:
                 if attempt == remaining_tries - 1:
                     raise
                 else:
