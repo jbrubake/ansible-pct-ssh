@@ -540,7 +540,7 @@ class Connection(ConnectionBase):
 
     def _set_version(self):
         # Check for 'pct' first in case the host is a proxmox server
-        if self._exec_command("type lxc", None, False)[0] == 0:
+        if self._exec_command("type pct", None, False)[0] == 0:
             self.lxc_version = "pct"
             display.vvv("PCT")
         # LXC v1 uses 'lxc-info', 'lxc-attach' and so on
