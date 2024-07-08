@@ -540,7 +540,7 @@ class Connection(ConnectionBase):
 
     def _set_version(self):
         # Check for 'pct' first in case the host is a proxmox server
-        if self._exec_command("type pct", None, False)[0] == 0:
+        if self._exec_command("sudo -i type pct", None, False)[0] == 0:
             self.lxc_version = "pct"
             display.vvv("PCT")
         # LXC v1 uses 'lxc-info', 'lxc-attach' and so on
@@ -1385,7 +1385,7 @@ class Connection(ConnectionBase):
         ssh_executable = self.get_option("ssh_executable")
         h = self.container_name
         if self.lxc_version == "pct":
-            lxc_cmd = "pct exec %s -- %s" % (pipes.quote(h), cmd)
+            lxc_cmd = "sudo pct exec %s -- %s" % (pipes.quote(h), cmd)
         elif self.lxc_version == "lxc-v2":
             lxc_cmd = "%slxc exec %s --mode=non-interactive -- /bin/sh -c %s" % (
                 self.systemd_run_prefix,
@@ -1428,7 +1428,7 @@ class Connection(ConnectionBase):
                     cmd = "cat > %s; echo -n done" % pipes.quote(out_path)
                 h = self.container_name
                 if self.lxc_version == "pct":
-                    lxc_cmd = "pct exec %s -- /bin/sh -c %s" % (
+                    lxc_cmd = "sudo pct exec %s -- /bin/sh -c %s" % (
                         pipes.quote(h),
                         pipes.quote(cmd),
                     )
@@ -1464,7 +1464,7 @@ class Connection(ConnectionBase):
                     cmd = "cat > %s; echo -n done" % pipes.quote(out_path)
                 h = self.container_name
                 if self.lxc_version == "pct":
-                    lxc_cmd = "pct exec %s -- %s" % (
+                    lxc_cmd = "sudo pct exec %s -- %s" % (
                         pipes.quote(h),
                         pipes.quote(cmd),
                     )
@@ -1498,7 +1498,7 @@ class Connection(ConnectionBase):
         cmd = "cat < %s" % pipes.quote(in_path)
         h = self.container_name
         if self.lxc_version == "pct":
-            lxc_cmd = "pct exec %s -- %s" % (
+            lxc_cmd = "sudo pct exec %s -- %s" % (
                 pipes.quote(h),
                 pipes.quote(cmd),
             )
