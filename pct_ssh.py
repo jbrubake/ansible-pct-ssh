@@ -1,11 +1,11 @@
-# Copyright 2016 Pierre Chifflier <pollux@wzdftpd.net>
+#Copyright 2016 Pierre Chifflier <pollux@wzdftpd.net>
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# SSH + lxc-attach connection module for Ansible 2.0
+# SSH + pct-attach connection module for Ansible 2.0
 #
 # Adapted from ansible/plugins/connection/ssh.py
-# Forked from https://github.com/chifflier/ansible-lxc-ssh
-# Hosted on https://github.com/andreasscherbaum/ansible-lxc-ssh
+# Forked from https://github.com/chifflier/ansible-pct-ssh
+# Hosted on https://github.com/andreasscherbaum/ansible-pct-ssh
 #
 # Ansible is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -59,11 +59,11 @@ from ansible.module_utils._text import (
 )
 
 DOCUMENTATION = """
-    name: lxc_ssh
-    short_description: connect via ssh and lxc to remote lxc guest
+    name: pct
+    short_description: connect via ssh and pct to remote Proxmox
     description:
         - This connection plugin allows ansible to communicate to the target
-          machines via normal ssh and lxc cli.
+          machines via normal ssh and the pct cli.
         - Ansible does not expose a channel to allow communication between the
           user and the ssh process to accept a password manually to decrypt an
           ssh key when using this connection plugin (which is the default). The
@@ -396,23 +396,18 @@ DOCUMENTATION = """
         cli:
           - name: timeout
         type: integer
-      lxc_host:
+      ct_id:
         description:
-            The lxc host to connect to.
+            The CT ID to connect to.
         env:
-            - name: LXC_HOST
-            - name: LXC_CONTAINER
+            - name: CT_ID
         ini:
-            - key: lxc_host
-              section: lxc_ssh_connection
-            - key: lxc_container
-              section: lxc_ssh_connection
+            - key: ct_id
+              section: pct_ssh_connection
         vars:
-          - name: lxc_host
-          - name: lxc_container
+          - name: ct_id
         cli:
-          - name: lxc_host
-          - name: lxc_container
+          - name: ct_id
 """
 
 
@@ -513,9 +508,9 @@ SSHPASS_AVAILABLE = None
 
 
 class Connection(ConnectionBase):
-    """ssh+lxc_attach connection"""
+    """ssh+pct connection"""
 
-    transport = "lxc_ssh"
+    transport = "pct_ssh"
 
     def __init__(self, play_context, new_stdin, *args, **kwargs):
         super(Connection, self).__init__(play_context, new_stdin, *args, **kwargs)
@@ -525,49 +520,26 @@ class Connection(ConnectionBase):
         self.control_path = None
         self.control_path_dir = None
 
-    def _set_command_prefix(self):
-        # check for cgroupv2 and use systemd-run to run the commands if needed
-        (returncode_cgroup, stdout_cgroup, stderr_cgroup) = self._exec_command(
-            "stat /sys/fs/cgroup/cgroup.controllers", None, False
-        )
-        cgroup2 = returncode_cgroup == 0
-        if cgroup2:
-            self.systemd_run_prefix = (
-                'systemd-run --quiet --user --scope --property="Delegate=yes" -- '
-            )
-        else:
-            self.systemd_run_prefix = ""
-
     def _set_version(self):
-        # Check for 'pct' first in case the host is a proxmox server
+        # Check for 'pct'
         if self._exec_command("sudo -i type pct", None, False)[0] == 0:
-            self.lxc_version = "pct"
-            display.vvv("PCT")
-        # LXC v1 uses 'lxc-info', 'lxc-attach' and so on
-        elif self._exec_command("type lxc-info", None, False)[0] == 0:
-            self.lxc_version = "lxc-v1"
-            display.vvv("LXC v1")
-        # LXC v2 uses just 'lxc'
-        elif self._exec_command("type lxc", None, False)[0] == 0:
-            self.lxc_version = "lxc-v2"
-            display.vvv("LXC v2")
+            display.vvv("pct found")
         else:
-            raise AnsibleConnectionFailure("Cannot identify LXC version")
+            raise AnsibleConnectionFailure("Cannot find pct")
             sys.exit(1)
 
     def set_options(self, *args, **kwargs):
         super(Connection, self).set_options(*args, **kwargs)
         self._set_version()
-        self._set_command_prefix()
 
     # The connection is created by running ssh/scp/sftp from the exec_command,
     # put_file, and fetch_file methods, so we don't need to do any connection
     # management here.
     def _connect(self):
-        """connect to the lxc; nothing to do here"""
+        """connect to the ct; nothing to do here"""
         display.vvv("XXX connect")
         super(Connection, self)._connect()
-        self.container_name = str(self.get_option("lxc_host"))
+        self.container_name = str(self.get_option("ct_id"))
 
     @staticmethod
     def _sshpass_available():
@@ -1384,29 +1356,17 @@ class Connection(ConnectionBase):
 
         ssh_executable = self.get_option("ssh_executable")
         h = self.container_name
-        if self.lxc_version == "pct":
-            lxc_cmd = "sudo pct exec %s -- %s" % (pipes.quote(h), cmd)
-        elif self.lxc_version == "lxc-v2":
-            lxc_cmd = "%slxc exec %s --mode=non-interactive -- /bin/sh -c %s" % (
-                self.systemd_run_prefix,
-                pipes.quote(h),
-                pipes.quote(cmd),
-            )
-        elif self.lxc_version == "lxc-v1":
-            lxc_cmd = "%slxc-attach --name %s -- /bin/sh -c %s" % (
-                self.systemd_run_prefix,
-                pipes.quote(h),
-                pipes.quote(cmd),
-            )
+        pct_cmd = "sudo pct exec %s -- %s" % (pipes.quote(h), cmd)
         if in_data:
-            cmd = self._build_command(ssh_executable, "ssh", self.host, lxc_cmd)
+            cmd = self._build_command(ssh_executable, "ssh", self.host, pct_cmd)
         else:
-            cmd = self._build_command(ssh_executable, "ssh", "-tt", self.host, lxc_cmd)
+            cmd = self._build_command(ssh_executable, "ssh", "-tt", self.host,
+                                      pct_cmd)
         (returncode, stdout, stderr) = self._run(cmd, in_data, sudoable=sudoable)
         return (returncode, stdout, stderr)
 
     def put_file(self, in_path, out_path):
-        """transfer a file from local to lxc"""
+        """transfer a file from local to ct"""
         super(Connection, self).put_file(in_path, out_path)
         display.vvv("PUT {0} TO {1}".format(in_path, out_path), host=self.host)
         ssh_executable = self.get_option("ssh_executable")
@@ -1427,28 +1387,15 @@ class Connection(ConnectionBase):
                     # regular command
                     cmd = "cat > %s; echo -n done" % pipes.quote(out_path)
                 h = self.container_name
-                if self.lxc_version == "pct":
-                    lxc_cmd = "sudo pct exec %s -- /bin/sh -c %s" % (
-                        pipes.quote(h),
-                        pipes.quote(cmd),
-                    )
-                elif self.lxc_version == "lxc-v2":
-                    lxc_cmd = "%slxc exec %s --mode=non-interactive -- /bin/sh -c %s" % (
-                        self.systemd_run_prefix,
-                        pipes.quote(h),
-                        pipes.quote(cmd),
-                    )
-                elif self.lxc_version == "lxc-v1":
-                    lxc_cmd = "%slxc-attach --name %s -- /bin/sh -c %s" % (
-                        self.systemd_run_prefix,
-                        pipes.quote(h),
-                        pipes.quote(cmd),
-                    )
+                pct_cmd = "sudo pct exec %s -- /bin/sh -c %s" % (
+                    pipes.quote(h),
+                    pipes.quote(cmd),
+                )
                 if in_data:
-                    cmd = self._build_command(ssh_executable, "ssh", self.host, lxc_cmd)
+                    cmd = self._build_command(ssh_executable, "ssh", self.host, pct_cmd)
                 else:
                     cmd = self._build_command(
-                        ssh_executable, "ssh", "-tt", self.host, lxc_cmd
+                        ssh_executable, "ssh", "-tt", self.host, pct_cmd
                     )
                 (returncode, stdout, stderr) = self._run(cmd, in_data, sudoable=False)
                 return (returncode, stdout, stderr)
@@ -1463,59 +1410,33 @@ class Connection(ConnectionBase):
                     # regular command
                     cmd = "cat > %s; echo -n done" % pipes.quote(out_path)
                 h = self.container_name
-                if self.lxc_version == "pct":
-                    lxc_cmd = "sudo pct exec %s -- %s" % (
-                        pipes.quote(h),
-                        pipes.quote(cmd),
-                    )
-                elif self.lxc_version == "lxc-v2":
-                    lxc_cmd = "%slxc exec %s --mode=non-interactive -- /bin/sh -c %s" % (
-                        self.systemd_run_prefix,
-                        pipes.quote(h),
-                        pipes.quote(cmd),
-                    )
-                elif self.lxc_version == "lxc-v1":
-                    lxc_cmd = "%slxc-attach --name %s -- /bin/sh -c %s" % (
-                        self.systemd_run_prefix,
-                        pipes.quote(h),
-                        pipes.quote(cmd),
-                    )
+                pct_cmd = "sudo pct exec %s -- %s" % (
+                    pipes.quote(h),
+                    pipes.quote(cmd),
+                )
                 if in_data:
-                    cmd = self._build_command(ssh_executable, "ssh", self.host, lxc_cmd)
+                    cmd = self._build_command(ssh_executable, "ssh", self.host, pct_cmd)
                 else:
                     cmd = self._build_command(
-                        ssh_executable, "ssh", "-tt", self.host, lxc_cmd
+                        ssh_executable, "ssh", "-tt", self.host, pct_cmd
                     )
                 (returncode, stdout, stderr) = self._run(cmd, in_data, sudoable=False)
                 return (returncode, stdout, stderr)
 
     def fetch_file(self, in_path, out_path):
-        """fetch a file from lxc to local"""
+        """fetch a file from ct to local"""
         super(Connection, self).fetch_file(in_path, out_path)
         display.vvv("FETCH {0} TO {1}".format(in_path, out_path), host=self.host)
         ssh_executable = self.get_option("ssh_executable")
 
         cmd = "cat < %s" % pipes.quote(in_path)
         h = self.container_name
-        if self.lxc_version == "pct":
-            lxc_cmd = "sudo pct exec %s -- %s" % (
-                pipes.quote(h),
-                pipes.quote(cmd),
-            )
-        elif self.lxc_version == "lxc-v2":
-            lxc_cmd = "%slxc exec %s --mode=non-interactive -- /bin/sh -c %s" % (
-                self.systemd_run_prefix,
-                pipes.quote(h),
-                pipes.quote(cmd),
-            )
-        elif self.lxc_version == "lxc-v1":
-            lxc_cmd = "%slxc-attach --name %s -- /bin/sh -c %s" % (
-                self.systemd_run_prefix,
-                pipes.quote(h),
-                pipes.quote(cmd),
-            )
+        pct_cmd = "sudo pct exec %s -- %s" % (
+            pipes.quote(h),
+            pipes.quote(cmd),
+        )
 
-        cmd = self._build_command(ssh_executable, "ssh", self.host, lxc_cmd)
+        cmd = self._build_command(ssh_executable, "ssh", self.host, pct_cmd)
         (returncode, stdout, stderr) = self._run(cmd, None, sudoable=False)
 
         if returncode != 0:
