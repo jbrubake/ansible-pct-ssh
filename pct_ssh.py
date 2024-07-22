@@ -1,4 +1,4 @@
-#Copyright 2016 Pierre Chifflier <pollux@wzdftpd.net>
+# Copyright 2016 Pierre Chifflier <pollux@wzdftpd.net>
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # SSH + pct-attach connection module for Ansible 2.0
@@ -1360,8 +1360,7 @@ class Connection(ConnectionBase):
         if in_data:
             cmd = self._build_command(ssh_executable, "ssh", self.host, pct_cmd)
         else:
-            cmd = self._build_command(ssh_executable, "ssh", "-tt", self.host,
-                                      pct_cmd)
+            cmd = self._build_command(ssh_executable, "ssh", "-tt", self.host, pct_cmd)
         (returncode, stdout, stderr) = self._run(cmd, in_data, sudoable=sudoable)
         return (returncode, stdout, stderr)
 
