@@ -19,10 +19,8 @@ connection_plugins = /path/to/connection_plugins/pct_ssh
 
 Then, modify your `hosts` file to use the `pct_ssh` transport:
 ```
-container ansible_host=proxmox_server ansible_connection=pct_ssh lxc_host=container_id
+container ansible_host=proxmox_server ansible_connection=pct_ssh ct_id=container_id
 ```
-
-`lxc_container=container` also works for setting the container name.
 
 ## Fork
 
