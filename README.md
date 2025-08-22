@@ -2,6 +2,11 @@
 
 Ansible connection plugin using ssh + pct
 
+**Note:** The [community.proxmox](https://galaxy.ansible.com/ui/repo/published/community/proxmox/content/connection/proxmox_pct_remote/#notes)
+collection has a `proxmox_pct_remote` connection plugin that can connect
+Proxmox CTs using `pct` over SSH but can also put and fetch files which
+this plugin **cannot**.
+
 ## Description
 
 This plugin allows using Ansible to manage Proxmox containers without having to install
